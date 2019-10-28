@@ -121,14 +121,7 @@ DEFINE_PROTO_FUZZER(Contract const& _input)
 		byteCode = solCompilationFramework.compileContract(contract_source, contractName);
 		Json::Value methodIdentifiers = solCompilationFramework.getMethodIdentifiers();
 		// We always call the function test() that is defined in proto converter template
-		hexEncodedInput = methodIdentifiers["test(bool)"].asString();
-
-		// Convert the value of "testcalldata_coding" proto field to test function's
-		// input argument.
-		if (_input.testcalldata_coding())
-			hexEncodedInput += "0000000000000000000000000000000000000000000000000000000000000001";
-		else
-			hexEncodedInput += "0000000000000000000000000000000000000000000000000000000000000000";
+		hexEncodedInput = methodIdentifiers["test()"].asString();
 	}
 	// Ignore stack too deep errors during compilation
 	catch (eth::StackTooDeepException const&)

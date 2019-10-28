@@ -374,15 +374,30 @@ string ProtoConverter::visit(TestFunction const& _x, string const& _storageVarDe
 	string localVarDefs = localVarBuffers.second;
 
 	ostringstream testBuffer;
+
+	string testFunction = Whiskers(R"(
+	function test() public returns (uint) {
+		<?calldata>return test_calldata_coding();</calldata>
+		<?returndata>return test_returndata_coding();</returndata>
+	})")
+	("calldata", m_test == Contract_Test::Contract_Test_CALLDATA_CODER)
+	("returndata", m_test == Contract_Test::Contract_Test_RETURNDATA_CODER)
+	.render();
+
 	string functionDeclCalldata = "function test_calldata_coding() internal returns (uint)";
 	string functionDeclReturndata = "function test_returndata_coding() internal returns (uint)";
+
 	testBuffer << Whiskers(R"(<structTypeDecl>
+<testFunction>
+<?calldata>
 	<functionDeclCalldata> {
 <storageVarDefs>
 <localVarDefs>
 <calldataTestCode>
 	}
-
+<calldataHelperFuncs>
+</calldata>
+<?returndata>
 	<functionDeclReturndata> {
 <returndataTestCode>
 	}
@@ -399,7 +414,12 @@ string ProtoConverter::visit(TestFunction const& _x, string const& _storageVarDe
 <localVarDefs>
 		return (<return_values>);
 	}
-</varsPresent>)")
+</varsPresent>
+</returndata>)")
+		("testFunction", testFunction)
+		("calldata", m_test == Contract_Test::Contract_Test_CALLDATA_CODER)
+		("returndata", m_test == Contract_Test::Contract_Test_RETURNDATA_CODER)
+		("calldataHelperFuncs", calldataHelperFunctions())
 		("varsPresent", !m_types.str().empty())
 		("structTypeDecl", structTypeDecl)
 		("functionDeclCalldata", functionDeclCalldata)
@@ -471,20 +491,10 @@ string ProtoConverter::testReturnDataFunction()
 		.render();
 }
 
-string ProtoConverter::helperFunctions()
+string ProtoConverter::calldataHelperFunctions()
 {
-	stringstream helperFuncs;
-	helperFuncs << R"(
-	/// Compares bytes, returning true if they are equal and false otherwise.
-	function bytesCompare(bytes memory a, bytes memory b) internal pure returns (bool) {
-		if(a.length != b.length)
-			return false;
-		for (uint i = 0; i < a.length; i++)
-			if (a[i] != b[i])
-				return false;
-		return true;
-	}
-
+	stringstream calldataHelperFuncs;
+	calldataHelperFuncs << R"(
 	/// Accepts function selector, correct argument encoding, and length of
 	/// invalid encoding and returns the correct and incorrect abi encoding
 	/// for calling the function specified by the function selector.
@@ -547,23 +557,12 @@ string ProtoConverter::helperFunctions()
 		if (success == true)
 			return 400001;
 		return 0;
-	}
-
-	/// Test function entrypoint that tests calldata coding if input
-	/// parameter is true, and returndata coding if input parameter
-	/// is false.
-	function test(bool calldatatest) public returns (uint) {
-		if (calldatatest)
-			return test_calldata_coding();
-		else
-			return test_returndata_coding();
-	}
-	)";
+	})";
 
 	// These are callee functions that encode from storage, decode to
 	// memory/calldata and check if decoded value matches storage value
 	// return true on successful match, false otherwise
-	helperFuncs << Whiskers(R"(
+	calldataHelperFuncs << Whiskers(R"(
 	function coder_calldata_public(<parameters_memory>) public pure returns (uint) {
 <equality_checks>
 		return 0;
@@ -578,6 +577,25 @@ string ProtoConverter::helperFunctions()
 	("equality_checks", equalityChecksAsString())
 	("parameters_calldata", typedParametersAsString(CalleeType::EXTERNAL))
 	.render();
+
+	return calldataHelperFuncs.str();
+}
+
+string ProtoConverter::commonHelperFunctions()
+{
+	stringstream helperFuncs;
+	helperFuncs << R"(
+	/// Compares bytes, returning true if they are equal and false otherwise.
+	function bytesCompare(bytes memory a, bytes memory b) internal pure returns (bool) {
+		if(a.length != b.length)
+			return false;
+		for (uint i = 0; i < a.length; i++)
+			if (a[i] != b[i])
+				return false;
+		return true;
+	}
+	)";
+
 	return helperFuncs.str();
 }
 
@@ -585,6 +603,9 @@ void ProtoConverter::visit(Contract const& _x)
 {
 	string pragmas = R"(pragma solidity >=0.0;
 pragma experimental ABIEncoderV2;)";
+
+	// Record test spec
+	m_test = _x.test();
 
 	// TODO: Support more than one but less than N state variables
 	auto storageBuffers = visit(_x.state_vars());
@@ -604,7 +625,7 @@ pragma experimental ABIEncoderV2;)";
 	ostringstream contractBody;
 	contractBody << storageVarDecls
 	             << testFunction
-	             << helperFunctions();
+	             << commonHelperFunctions();
 	m_output << Whiskers(R"(<pragmas>
 <contractStart>
 <contractBody>

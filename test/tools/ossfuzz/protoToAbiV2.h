@@ -306,8 +306,11 @@ private:
 	/// Return comma separated typed function parameters as string
 	std::string typedParametersAsString(CalleeType _calleeType);
 
-	/// Return Solidity helper functions as string
-	std::string helperFunctions();
+	/// Return commonly used Solidity helper functions as string
+	std::string commonHelperFunctions();
+
+	/// Return helper functions used to test calldata coding
+	std::string calldataHelperFunctions();
 
 	/// Return top-level calldata coder test function as string
 	std::string testCallDataFunction(unsigned _invalidLength);
@@ -372,6 +375,8 @@ private:
 	/// Struct counter
 	unsigned m_structCounter;
 	unsigned m_numStructsAdded;
+	/// Enum stating abiv2 coder to be tested
+	Contract_Test m_test;
 	/// Prefixes for declared and parameterized variable names
 	static auto constexpr s_localVarNamePrefix = "lv_";
 	static auto constexpr s_stateVarNamePrefix = "sv_";
